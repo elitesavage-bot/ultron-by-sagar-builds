@@ -693,7 +693,7 @@ export function createOrbScene(container: HTMLElement): OrbSceneApi {
   // ═══════════════════════════════════════════════
   // ANIMATION
   // ═══════════════════════════════════════════════
-  const clock = new THREE.Clock();
+  const startTime = performance.now();
   let flickerTimer = 0;
   let rafId = 0;
   let disposed = false;
@@ -701,7 +701,7 @@ export function createOrbScene(container: HTMLElement): OrbSceneApi {
   function animate() {
     if (disposed) return;
     rafId = requestAnimationFrame(animate);
-    const t = clock.getElapsedTime();
+    const t = (performance.now() - startTime) * 0.001;
 
     // Outer shell rotation
     outerShell.rotation.y += 0.0015;
