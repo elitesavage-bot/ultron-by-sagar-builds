@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createOrbScene, type OrbSceneApi } from "@/lib/orbScene";
 import { HandTracker, type TrackerStatus } from "@/lib/handTracker";
+import { VoiceEngine, type VoiceState } from "@/lib/voiceEngine";
+import VoicePanel from "./VoicePanel";
 
 type CameraState = "off" | "starting" | "on" | "error";
 
@@ -12,30 +14,110 @@ const MODE_LABEL: Record<TrackerStatus["mode"], string> = {
   zoom: "ZOOM",
 };
 
+// Number of waveform bars to sample from the audio analyser
+const WAVEFORM_BARS = 28;
+
 export default function JarvisOrb() {
   const containerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const overlayRef = useRef<HTMLCanvasElement>(null);
   const sceneRef = useRef<OrbSceneApi | null>(null);
   const trackerRef = useRef<HandTracker | null>(null);
+  const voiceRef = useRef<VoiceEngine | null>(null);
 
+  // Hand tracking state
   const [camera, setCamera] = useState<CameraState>("off");
   const [status, setStatus] = useState<TrackerStatus>({ hands: 0, mode: "idle" });
-  const [error, setError] = useState<string | null>(null);
+  const [handError, setHandError] = useState<string | null>(null);
 
+  // Voice assistant state
+  const [voiceState, setVoiceState] = useState<VoiceState>("idle");
+  const [voiceTranscript, setVoiceTranscript] = useState("");
+  const [voiceReply, setVoiceReply] = useState("");
+  const [voiceError, setVoiceError] = useState<string | null>(null);
+  const [waveformData, setWaveformData] = useState<number[]>(
+    Array(WAVEFORM_BARS).fill(0),
+  );
+
+  // Whether the V key is currently held (for hold-to-talk)
+  const vHeldRef = useRef(false);
+
+  // ── Init Three.js scene ──────────────────────
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
     const scene = createOrbScene(container);
     sceneRef.current = scene;
+
+    // Init voice engine
+    const engine = new VoiceEngine(scene, {
+      onStateChange: setVoiceState,
+      onTranscript: (text) => {
+        setVoiceTranscript(text);
+        setVoiceReply(""); // clear previous reply when new query arrives
+        setVoiceError(null);
+      },
+      onReplyChunk: (chunk) => {
+        setVoiceReply((prev) => prev + chunk);
+      },
+      onReplyDone: (full) => {
+        setVoiceReply(full);
+      },
+      onError: (msg) => {
+        setVoiceError(msg);
+      },
+    });
+    voiceRef.current = engine;
+
     return () => {
       trackerRef.current?.stop();
       trackerRef.current = null;
+      engine.dispose();
+      voiceRef.current = null;
       scene.dispose();
       sceneRef.current = null;
     };
   }, []);
 
+  // ── Waveform animation driven by voice level ──
+  // We poll the waveform by overriding setVoiceLevel via a wrapper in the engine
+  // Instead, we sample a fake bar-graph from the voice state + a RAF loop
+  useEffect(() => {
+    if (voiceState !== "listening") {
+      setWaveformData(Array(WAVEFORM_BARS).fill(0));
+      return;
+    }
+    let rafId = 0;
+    const tick = () => {
+      // Generate synthetic waveform driven by time for visual fidelity
+      // Real amplitude is fed to the orb via setVoiceLevel inside VoiceEngine
+      const t = performance.now() / 1000;
+      const bars = Array.from({ length: WAVEFORM_BARS }, (_, i) => {
+        const base = Math.sin(t * 6 + i * 0.6) * 0.5 + 0.5;
+        const detail = Math.sin(t * 14 + i * 1.2) * 0.2;
+        return Math.max(0.05, Math.min(1, base * 0.6 + detail));
+      });
+      setWaveformData(bars);
+      rafId = requestAnimationFrame(tick);
+    };
+    rafId = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(rafId);
+  }, [voiceState]);
+
+  // ── Hold-to-talk handlers ────────────────────
+  const handleMicDown = useCallback(() => {
+    const engine = voiceRef.current;
+    if (!engine) return;
+    void engine.startListening();
+  }, []);
+
+  const handleMicUp = useCallback(() => {
+    const engine = voiceRef.current;
+    if (!engine) return;
+    void engine.stopListening();
+  }, []);
+
+  // ── Hand gesture controls ────────────────────
   const stopGestures = useCallback(() => {
     trackerRef.current?.stop();
     trackerRef.current = null;
@@ -49,7 +131,7 @@ export default function JarvisOrb() {
     if (!video || !overlay || trackerRef.current) return;
 
     setCamera("starting");
-    setError(null);
+    setHandError(null);
 
     const tracker = new HandTracker(video, overlay, {
       onRotate: (dt, dp) => sceneRef.current?.rotateBy(dt, dp),
@@ -65,7 +147,7 @@ export default function JarvisOrb() {
       trackerRef.current = null;
       tracker.stop();
       setCamera("error");
-      setError(
+      setHandError(
         err instanceof DOMException && err.name === "NotAllowedError"
           ? "CAMERA ACCESS DENIED"
           : "TRACKING INIT FAILED",
@@ -78,8 +160,12 @@ export default function JarvisOrb() {
     else void startGestures();
   }, [startGestures, stopGestures]);
 
+  // ── Keyboard controls ────────────────────────
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      // Ignore repeats (key held)
+      if (e.repeat) return;
+
       switch (e.key) {
         case "+":
         case "=":
@@ -97,11 +183,32 @@ export default function JarvisOrb() {
         case "G":
           toggleGestures();
           break;
+        case "v":
+        case "V":
+          if (!vHeldRef.current) {
+            vHeldRef.current = true;
+            handleMicDown();
+          }
+          break;
       }
     };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [toggleGestures]);
+
+    const onKeyUp = (e: KeyboardEvent) => {
+      if (e.key === "v" || e.key === "V") {
+        if (vHeldRef.current) {
+          vHeldRef.current = false;
+          handleMicUp();
+        }
+      }
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    window.addEventListener("keyup", onKeyUp);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("keyup", onKeyUp);
+    };
+  }, [toggleGestures, handleMicDown, handleMicUp]);
 
   const cameraOn = camera === "on";
 
@@ -129,11 +236,26 @@ export default function JarvisOrb() {
           <div>
             <span className="key">G</span> hand gestures&nbsp;&nbsp;
             <span className="key">R</span> reset&nbsp;&nbsp;
-            <span className="key">+/−</span> zoom
+            <span className="key">+/−</span> zoom&nbsp;&nbsp;
+            <span className="key">V</span> voice
           </div>
         )}
       </div>
 
+      {/* ── Voice Panel (left side) ── */}
+      <div className="hud voice-hud">
+        <VoicePanel
+          state={voiceState}
+          transcript={voiceTranscript}
+          reply={voiceReply}
+          error={voiceError}
+          waveformData={waveformData}
+          onMicDown={handleMicDown}
+          onMicUp={handleMicUp}
+        />
+      </div>
+
+      {/* ── Hand tracking controls (right side) ── */}
       <div className="hud hud-controls">
         <div className={`camera-panel${cameraOn ? " visible" : ""}`}>
           {/* Mirrored preview so it behaves like a mirror */}
@@ -146,7 +268,7 @@ export default function JarvisOrb() {
           </div>
         </div>
 
-        {error && <div className="hud-error">{error}</div>}
+        {handError && <div className="hud-error">{handError}</div>}
 
         <div className="hud-row">
           <button

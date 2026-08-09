@@ -14,6 +14,10 @@ export interface OrbSceneApi {
   zoomOut(): void;
   resetView(): void;
   dispose(): void;
+  /** Drive the orb's bloom/core with mic amplitude (0–1). Called ~60fps while listening. */
+  setVoiceLevel(level: number): void;
+  /** Activate/deactivate the "ULTRON is thinking/speaking" visual state. */
+  setTalking(isTalking: boolean): void;
 }
 
 const HOME_POSITION = new THREE.Vector3(0, 0.5, 5.5);
@@ -698,6 +702,10 @@ export function createOrbScene(container: HTMLElement): OrbSceneApi {
   let rafId = 0;
   let disposed = false;
 
+  // ── Voice reactivity state (set externally by VoiceEngine) ──
+  let voiceLevel = 0;   // 0–1 mic amplitude
+  let isTalking = false; // true while ULTRON thinks/speaks
+
   function animate() {
     if (disposed) return;
     rafId = requestAnimationFrame(animate);
@@ -802,8 +810,28 @@ export function createOrbScene(container: HTMLElement): OrbSceneApi {
       });
     }
 
-    // Bloom pulse
-    bloom.strength = 1.6 + Math.sin(t * 0.8) * 0.3;
+    // Bloom pulse — boosted by voice level and talking state
+    const voiceBoost = voiceLevel * 1.2;
+    const talkingBoost = isTalking ? 0.6 + Math.sin(t * 4) * 0.25 : 0;
+    bloom.strength = 1.6 + Math.sin(t * 0.8) * 0.3 + voiceBoost + talkingBoost;
+
+    // Core pulse boost when voice is active
+    if (voiceLevel > 0.05 || isTalking) {
+      const voicePulse = voiceLevel * 0.8 + (isTalking ? 0.4 : 0);
+      coreSphere.scale.setScalar(Math.max(coreSphere.scale.x, 1 + voicePulse));
+      coreSphereMat.opacity = Math.min(0.7, coreSphereMat.opacity + voicePulse * 0.3);
+      icoWireMat.opacity = Math.min(1, icoWireMat.opacity + voicePulse * 0.4);
+    }
+
+    // Faster scan ring sweep during talking
+    if (isTalking) {
+      const tScan = t * 2.5;
+      const sy1 = Math.sin(tScan * 0.4) * R1;
+      scanRing1.position.y = sy1;
+      const ss1 = Math.sqrt(Math.max(0, R1 * R1 - sy1 * sy1)) / R1;
+      scanRing1.scale.set(ss1, ss1, 1);
+      (scanRing1.material as THREE.MeshBasicMaterial).opacity = 0.45 * ss1;
+    }
 
     // Update chromatic aberration time
     chromaticPass.uniforms.uTime.value = t;
@@ -854,5 +882,7 @@ export function createOrbScene(container: HTMLElement): OrbSceneApi {
     zoomOut: () => zoomBy(1.55),
     resetView,
     dispose,
+    setVoiceLevel: (level: number) => { voiceLevel = level; },
+    setTalking: (talking: boolean) => { isTalking = talking; },
   };
 }
