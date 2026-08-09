@@ -233,3 +233,275 @@ body {
     display: none;
   }
 }
+
+/* ══════════════════════════════════════════
+   VOICE HUD — left side panel
+══════════════════════════════════════════ */
+
+.voice-hud {
+  top: 60px;
+  left: 24px;
+  bottom: auto;
+  right: auto;
+  max-width: 260px;
+  width: 100%;
+}
+
+.voice-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  background: rgba(10, 5, 0, 0.62);
+  border: 1px solid rgba(255, 170, 48, 0.3);
+  border-radius: 6px;
+  backdrop-filter: blur(6px);
+  box-shadow:
+    0 0 24px rgba(255, 140, 20, 0.08),
+    inset 0 0 16px rgba(255, 140, 20, 0.04);
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.voice-panel--active {
+  border-color: rgba(255, 170, 48, 0.7);
+  box-shadow:
+    0 0 32px rgba(255, 140, 20, 0.18),
+    inset 0 0 20px rgba(255, 140, 20, 0.08);
+}
+
+/* Header */
+.voice-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.voice-panel-title {
+  font-family: "Courier New", monospace;
+  font-size: 10px;
+  letter-spacing: 0.25em;
+  color: rgba(255, 170, 48, 0.6);
+}
+
+/* State badge */
+.voice-badge {
+  font-family: "Courier New", monospace;
+  font-size: 9px;
+  font-weight: bold;
+  letter-spacing: 0.12em;
+  padding: 2px 6px;
+  border-radius: 3px;
+  border: 1px solid currentColor;
+  transition: color 0.2s, border-color 0.2s, background 0.2s;
+}
+
+.voice-badge--idle {
+  color: rgba(255, 170, 48, 0.45);
+}
+
+.voice-badge--listening {
+  color: #ff4444;
+  animation: badge-pulse 0.8s ease-in-out infinite alternate;
+}
+
+.voice-badge--thinking {
+  color: #ffcc44;
+  animation: badge-pulse 1.2s ease-in-out infinite alternate;
+}
+
+.voice-badge--speaking {
+  color: #44ffaa;
+  animation: badge-pulse 0.6s ease-in-out infinite alternate;
+}
+
+@keyframes badge-pulse {
+  from { opacity: 0.55; }
+  to   { opacity: 1; }
+}
+
+/* Waveform */
+.voice-waveform-wrap {
+  height: 0;
+  overflow: hidden;
+  transition: height 0.25s ease;
+}
+
+.voice-waveform-wrap.visible {
+  height: 40px;
+}
+
+.voice-waveform-canvas {
+  display: block;
+  width: 100%;
+  height: 36px;
+  border-radius: 3px;
+  background: rgba(255, 100, 20, 0.04);
+}
+
+/* Chat bubbles */
+.voice-bubble {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 8px 10px;
+  border-radius: 4px;
+  font-family: "Courier New", monospace;
+  font-size: 11px;
+  line-height: 1.5;
+  max-height: 80px;
+  overflow-y: auto;
+}
+
+.voice-bubble::-webkit-scrollbar {
+  width: 3px;
+}
+.voice-bubble::-webkit-scrollbar-thumb {
+  background: rgba(255, 170, 48, 0.3);
+  border-radius: 2px;
+}
+
+.voice-bubble--user {
+  background: rgba(255, 170, 48, 0.06);
+  border: 1px solid rgba(255, 170, 48, 0.18);
+}
+
+.voice-bubble--ai {
+  background: rgba(68, 255, 170, 0.04);
+  border: 1px solid rgba(68, 255, 170, 0.2);
+}
+
+.voice-bubble-label {
+  font-size: 9px;
+  letter-spacing: 0.15em;
+  opacity: 0.5;
+}
+
+.voice-bubble--user .voice-bubble-label {
+  color: #ffaa30;
+}
+
+.voice-bubble--ai .voice-bubble-label {
+  color: #44ffaa;
+}
+
+.voice-bubble-text {
+  color: rgba(255, 220, 150, 0.88);
+}
+
+.voice-bubble--ai .voice-bubble-text {
+  color: rgba(180, 255, 220, 0.88);
+}
+
+/* Streaming cursor */
+.voice-cursor {
+  display: inline-block;
+  animation: blink 0.6s step-start infinite;
+  color: #44ffaa;
+  margin-left: 1px;
+}
+
+@keyframes blink {
+  50% { opacity: 0; }
+}
+
+/* Error */
+.voice-error {
+  font-family: "Courier New", monospace;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  color: #ff5533;
+  text-shadow: 0 0 8px rgba(255, 60, 30, 0.6);
+  padding: 2px 0;
+}
+
+/* Mic button row */
+.voice-btn-row {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.voice-mic-btn {
+  position: relative;
+  width: 100%;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: rgba(20, 10, 0, 0.55);
+  border: 1px solid rgba(255, 170, 48, 0.45);
+  border-radius: 4px;
+  color: #ffaa30;
+  font-family: "Courier New", monospace;
+  font-size: 11px;
+  font-weight: bold;
+  letter-spacing: 0.12em;
+  cursor: pointer;
+  backdrop-filter: blur(2px);
+  text-shadow: 0 0 6px rgba(255, 170, 48, 0.7);
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
+}
+
+.voice-mic-btn:hover:not(:disabled) {
+  background: rgba(60, 30, 0, 0.7);
+  border-color: rgba(255, 200, 100, 0.9);
+  box-shadow: 0 0 14px rgba(255, 150, 30, 0.25);
+}
+
+.voice-mic-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.voice-mic-btn--recording {
+  background: rgba(80, 0, 0, 0.65) !important;
+  border-color: #ff4444 !important;
+  color: #ff6666 !important;
+  text-shadow: 0 0 8px rgba(255, 60, 60, 0.8) !important;
+  box-shadow: 0 0 20px rgba(255, 50, 50, 0.25) !important;
+  animation: mic-ring-pulse 1s ease-in-out infinite;
+}
+
+@keyframes mic-ring-pulse {
+  0%   { box-shadow: 0 0 0   6px rgba(255, 50, 50, 0.0); }
+  50%  { box-shadow: 0 0 0  12px rgba(255, 50, 50, 0.15); }
+  100% { box-shadow: 0 0 0   6px rgba(255, 50, 50, 0.0); }
+}
+
+.voice-mic-icon {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
+.voice-mic-label {
+  font-size: 10px;
+  letter-spacing: 0.14em;
+}
+
+.voice-hotkey-hint {
+  font-family: "Courier New", monospace;
+  font-size: 9px;
+  color: rgba(255, 170, 48, 0.35);
+  letter-spacing: 0.1em;
+}
+
+@media (max-width: 600px) {
+  .voice-hud {
+    top: auto;
+    bottom: 130px;
+    left: 24px;
+    right: auto;
+    max-width: 220px;
+  }
+}
+
