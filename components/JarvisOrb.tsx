@@ -8,9 +8,13 @@ type CameraState = "off" | "starting" | "on" | "error";
 type VoiceState = "off" | "listening" | "error";
 
 type SpeechRecognitionEventLike = Event & {
+  resultIndex: number;
   results: {
     length: number;
-    [index: number]: { [index: number]: { transcript: string } };
+    [index: number]: {
+      isFinal: boolean;
+      [index: number]: { transcript: string };
+    };
   };
 };
 
@@ -113,6 +117,7 @@ export default function JarvisOrb() {
     if (recognitionRef.current) {
       recognitionRef.current.stop();
       recognitionRef.current = null;
+      window.speechSynthesis?.cancel();
       setVoice("off");
       return;
     }
@@ -129,8 +134,17 @@ export default function JarvisOrb() {
     recognition.interimResults = true;
     recognition.lang = "en-US";
     recognition.onresult = (event) => {
-      const latest = event.results[event.results.length - 1]?.[0]?.transcript ?? "";
-      setTranscript(latest.trim());
+      const latestResult = event.results[event.results.length - 1];
+      const latest = latestResult?.[0]?.transcript?.trim() ?? "";
+      setTranscript(latest);
+
+      if (latestResult?.isFinal && latest && "speechSynthesis" in window) {
+        window.speechSynthesis.cancel();
+        const reply = new SpeechSynthesisUtterance(`I heard: ${latest}`);
+        reply.lang = "en-US";
+        reply.rate = 0.95;
+        window.speechSynthesis.speak(reply);
+      }
     };
     recognition.onerror = () => {
       recognitionRef.current = null;
