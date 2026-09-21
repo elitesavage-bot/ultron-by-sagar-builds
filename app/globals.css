@@ -179,6 +179,59 @@ body {
   text-shadow: 0 0 8px rgba(255, 60, 30, 0.7);
 }
 
+.voice-panel {
+  width: min(280px, calc(100vw - 48px));
+  min-height: 26px;
+  padding: 7px 9px;
+  border: 1px solid rgba(255, 170, 48, 0.25);
+  background: rgba(20, 10, 0, 0.42);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-align: left;
+}
+
+.voice-indicator {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: rgba(255, 204, 102, 0.72);
+}
+
+.voice-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow: 0 0 7px currentColor;
+}
+
+.voice-indicator.active {
+  color: #ffcc66;
+}
+
+.voice-indicator.active .voice-dot {
+  animation: voice-pulse 1s ease-in-out infinite;
+}
+
+.voice-transcript {
+  margin-top: 5px;
+  color: #ffcc66;
+  letter-spacing: 0.06em;
+  line-height: 1.4;
+}
+
+.voice-btn.listening {
+  border-color: #ffcc66;
+  background: rgba(120, 60, 0, 0.6);
+}
+
+@keyframes voice-pulse {
+  50% {
+    transform: scale(1.8);
+    opacity: 0.5;
+  }
+}
+
 /* ——— Camera preview panel ——— */
 .camera-panel {
   position: relative;
