@@ -23,7 +23,7 @@ type SpeechRecognitionLike = {
   interimResults: boolean;
   lang: string;
   onresult: ((event: SpeechRecognitionEventLike) => void) | null;
-  onerror: (() => void) | null;
+  onerror: ((event: { error?: string }) => void) | null;
   onend: (() => void) | null;
   start: () => void;
   stop: () => void;
@@ -57,6 +57,22 @@ export default function JarvisOrb() {
   const [transcript, setTranscript] = useState("");
   const [error, setError] = useState<string | null>(null);
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
+  const speechRef = useRef<SpeechSynthesisUtterance | null>(null);
+
+  const speakReply = useCallback((text: string) => {
+    if (!("speechSynthesis" in window)) {
+      setError("SPOKEN REPLIES ARE NOT SUPPORTED IN THIS BROWSER");
+      return;
+    }
+
+    window.speechSynthesis.cancel();
+    const reply = new SpeechSynthesisUtterance(text);
+    reply.lang = "en-US";
+    reply.rate = 0.95;
+    reply.pitch = 1;
+    speechRef.current = reply;
+    window.speechSynthesis.speak(reply);
+  }, []);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -138,18 +154,18 @@ export default function JarvisOrb() {
       const latest = latestResult?.[0]?.transcript?.trim() ?? "";
       setTranscript(latest);
 
-      if (latestResult?.isFinal && latest && "speechSynthesis" in window) {
-        window.speechSynthesis.cancel();
-        const reply = new SpeechSynthesisUtterance(`I heard: ${latest}`);
-        reply.lang = "en-US";
-        reply.rate = 0.95;
-        window.speechSynthesis.speak(reply);
+      if (latestResult?.isFinal && latest) {
+        speakReply(`I heard: ${latest}`);
       }
     };
-    recognition.onerror = () => {
+    recognition.onerror = (event) => {
       recognitionRef.current = null;
       setVoice("error");
-      setError("MICROPHONE ACCESS DENIED");
+      setError(
+        event.error === "not-allowed"
+          ? "MICROPHONE ACCESS DENIED"
+          : "VOICE INPUT FAILED — CHECK MICROPHONE PERMISSIONS",
+      );
     };
     recognition.onend = () => {
       recognitionRef.current = null;
@@ -160,10 +176,13 @@ export default function JarvisOrb() {
     setTranscript("");
     setVoice("listening");
     recognition.start();
-  }, []);
+  }, [speakReply]);
 
   useEffect(() => {
-    return () => recognitionRef.current?.stop();
+    return () => {
+      recognitionRef.current?.stop();
+      window.speechSynthesis?.cancel();
+    };
   }, []);
 
   useEffect(() => {
