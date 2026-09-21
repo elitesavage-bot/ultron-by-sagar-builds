@@ -5,6 +5,34 @@ import { createOrbScene, type OrbSceneApi } from "@/lib/orbScene";
 import { HandTracker, type TrackerStatus } from "@/lib/handTracker";
 
 type CameraState = "off" | "starting" | "on" | "error";
+type VoiceState = "off" | "listening" | "error";
+
+type SpeechRecognitionEventLike = Event & {
+  results: {
+    length: number;
+    [index: number]: { [index: number]: { transcript: string } };
+  };
+};
+
+type SpeechRecognitionLike = {
+  continuous: boolean;
+  interimResults: boolean;
+  lang: string;
+  onresult: ((event: SpeechRecognitionEventLike) => void) | null;
+  onerror: (() => void) | null;
+  onend: (() => void) | null;
+  start: () => void;
+  stop: () => void;
+};
+
+type SpeechRecognitionConstructor = new () => SpeechRecognitionLike;
+
+declare global {
+  interface Window {
+    SpeechRecognition?: SpeechRecognitionConstructor;
+    webkitSpeechRecognition?: SpeechRecognitionConstructor;
+  }
+}
 
 const MODE_LABEL: Record<TrackerStatus["mode"], string> = {
   idle: "STANDBY",
@@ -21,7 +49,10 @@ export default function JarvisOrb() {
 
   const [camera, setCamera] = useState<CameraState>("off");
   const [status, setStatus] = useState<TrackerStatus>({ hands: 0, mode: "idle" });
+  const [voice, setVoice] = useState<VoiceState>("off");
+  const [transcript, setTranscript] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -77,6 +108,49 @@ export default function JarvisOrb() {
     if (trackerRef.current) stopGestures();
     else void startGestures();
   }, [startGestures, stopGestures]);
+
+  const toggleVoice = useCallback(() => {
+    if (recognitionRef.current) {
+      recognitionRef.current.stop();
+      recognitionRef.current = null;
+      setVoice("off");
+      return;
+    }
+
+    const Recognition = window.SpeechRecognition ?? window.webkitSpeechRecognition;
+    if (!Recognition) {
+      setVoice("error");
+      setError("VOICE INPUT IS NOT SUPPORTED IN THIS BROWSER");
+      return;
+    }
+
+    const recognition = new Recognition();
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.lang = "en-US";
+    recognition.onresult = (event) => {
+      const latest = event.results[event.results.length - 1]?.[0]?.transcript ?? "";
+      setTranscript(latest.trim());
+    };
+    recognition.onerror = () => {
+      recognitionRef.current = null;
+      setVoice("error");
+      setError("MICROPHONE ACCESS DENIED");
+    };
+    recognition.onend = () => {
+      recognitionRef.current = null;
+      setVoice("off");
+    };
+    recognitionRef.current = recognition;
+    setError(null);
+    setTranscript("");
+    setVoice("listening");
+    recognition.start();
+  }, []);
+
+  useEffect(() => {
+    return () => recognitionRef.current?.stop();
+  }, []);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -148,7 +222,23 @@ export default function JarvisOrb() {
 
         {error && <div className="hud-error">{error}</div>}
 
+        <div className="voice-panel" aria-live="polite">
+          <div className={`voice-indicator${voice === "listening" ? " active" : ""}`}>
+            <span className="voice-dot" aria-hidden="true" />
+            {voice === "listening" ? "LISTENING" : voice === "error" ? "VOICE ERROR" : "VOICE READY"}
+          </div>
+          {transcript && <div className="voice-transcript">&quot;{transcript}&quot;</div>}
+        </div>
+
         <div className="hud-row">
+          <button
+            type="button"
+            className={`hud-btn voice-btn${voice === "listening" ? " listening" : ""}`}
+            aria-pressed={voice === "listening"}
+            onClick={toggleVoice}
+          >
+            {voice === "listening" ? "STOP VOICE" : "VOICE INPUT"}
+          </button>
           <button
             type="button"
             className="hud-btn"

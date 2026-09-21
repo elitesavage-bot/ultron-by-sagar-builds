@@ -1,9 +1,11 @@
 import type { Metadata, Viewport } from "next";
+import OfflineRegistration from "@/components/OfflineRegistration";
 import "./globals.css";
 
 export const metadata: Metadata = {
   title: "ULTRON Orb UI",
-  description: "An Iron Man-inspired holographic orb built with Three.js and Next.js",
+  description: "An offline-capable holographic orb built with Three.js and Next.js",
+  manifest: "/manifest.webmanifest",
 };
 
 export const viewport: Viewport = {
@@ -19,7 +21,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        <OfflineRegistration />
+        {children}
+      </body>
     </html>
   );
 }
