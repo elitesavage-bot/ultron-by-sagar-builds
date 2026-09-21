@@ -174,8 +174,15 @@ export default function JarvisOrb() {
     recognitionRef.current = recognition;
     setError(null);
     setTranscript("");
-    setVoice("listening");
-    recognition.start();
+
+    try {
+      recognition.start();
+      setVoice("listening");
+    } catch {
+      recognitionRef.current = null;
+      setVoice("error");
+      setError("VOICE INPUT COULD NOT START — CHECK MICROPHONE PERMISSIONS");
+    }
   }, [speakReply]);
 
   useEffect(() => {
