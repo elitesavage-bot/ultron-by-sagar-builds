@@ -5,7 +5,7 @@ import { createOrbScene, type OrbSceneApi } from "@/lib/orbScene";
 import { HandTracker, type TrackerStatus } from "@/lib/handTracker";
 
 type CameraState = "off" | "starting" | "on" | "error";
-type VoiceState = "off" | "listening" | "error";
+type VoiceState = "off" | "listening" | "speaking" | "error";
 
 type SpeechRecognitionEventLike = Event & {
   resultIndex: number;
@@ -60,18 +60,44 @@ export default function JarvisOrb() {
   const speechRef = useRef<SpeechSynthesisUtterance | null>(null);
 
   const speakReply = useCallback((text: string) => {
-    if (!("speechSynthesis" in window)) {
+    if (!("speechSynthesis" in window) || typeof SpeechSynthesisUtterance === "undefined") {
+      setVoice("error");
       setError("SPOKEN REPLIES ARE NOT SUPPORTED IN THIS BROWSER");
       return;
     }
 
-    window.speechSynthesis.cancel();
-    const reply = new SpeechSynthesisUtterance(text);
-    reply.lang = "en-US";
-    reply.rate = 0.95;
-    reply.pitch = 1;
-    speechRef.current = reply;
-    window.speechSynthesis.speak(reply);
+    const synth = window.speechSynthesis;
+    synth.cancel();
+    synth.resume();
+
+    let hasSpoken = false;
+    const speak = () => {
+      if (hasSpoken) return;
+      hasSpoken = true;
+      const reply = new SpeechSynthesisUtterance(text);
+      const voice = synth
+        .getVoices()
+        .find((candidate) => candidate.lang.toLowerCase().startsWith("en"));
+      if (voice) reply.voice = voice;
+      reply.lang = voice?.lang ?? "en-US";
+      reply.rate = 0.95;
+      reply.pitch = 1;
+      reply.onstart = () => setVoice("speaking");
+      reply.onend = () => setVoice("off");
+      reply.onerror = () => {
+        setVoice("error");
+        setError("SPOKEN REPLY FAILED — CHECK YOUR SYSTEM AUDIO");
+      };
+      speechRef.current = reply;
+      synth.speak(reply);
+    };
+
+    if (synth.getVoices().length === 0) {
+      synth.addEventListener("voiceschanged", speak, { once: true });
+      window.setTimeout(speak, 250);
+    } else {
+      speak();
+    }
   }, []);
 
   useEffect(() => {
@@ -265,7 +291,13 @@ export default function JarvisOrb() {
         <div className="voice-panel" aria-live="polite">
           <div className={`voice-indicator${voice === "listening" ? " active" : ""}`}>
             <span className="voice-dot" aria-hidden="true" />
-            {voice === "listening" ? "LISTENING" : voice === "error" ? "VOICE ERROR" : "VOICE READY"}
+            {voice === "listening"
+              ? "LISTENING"
+              : voice === "speaking"
+                ? "SPEAKING"
+                : voice === "error"
+                  ? "VOICE ERROR"
+                  : "VOICE READY"}
           </div>
           {transcript && <div className="voice-transcript">&quot;{transcript}&quot;</div>}
         </div>
