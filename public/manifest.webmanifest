@@ -1,0 +1,11 @@
+{
+  "name": "ULTRON Orb UI",
+  "short_name": "ULTRON",
+  "description": "Offline holographic orb interface",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#000000",
+  "theme_color": "#000000",
+  "orientation": "any",
+  "icons": []
+}
