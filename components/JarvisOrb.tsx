@@ -10,7 +10,7 @@ type VoiceState = "off" | "listening" | "error";
 type SpeechRecognitionEventLike = Event & {
   results: {
     length: number;
-    [index: number]: { [index: number]: { transcript: string } };
+    [index: number]: { isFinal?: boolean; [index: number]: { transcript: string } };
   };
 };
 
@@ -129,8 +129,18 @@ export default function JarvisOrb() {
     recognition.interimResults = true;
     recognition.lang = "en-US";
     recognition.onresult = (event) => {
-      const latest = event.results[event.results.length - 1]?.[0]?.transcript ?? "";
-      setTranscript(latest.trim());
+      const latestResult = event.results[event.results.length - 1];
+      const latest = latestResult?.[0]?.transcript ?? "";
+      const text = latest.trim();
+      setTranscript(text);
+
+      if (latestResult?.isFinal && text && "speechSynthesis" in window) {
+        window.speechSynthesis.cancel();
+        const reply = new SpeechSynthesisUtterance(`I heard: ${text}`);
+        reply.rate = 0.95;
+        reply.pitch = 0.8;
+        window.speechSynthesis.speak(reply);
+      }
     };
     recognition.onerror = () => {
       recognitionRef.current = null;
